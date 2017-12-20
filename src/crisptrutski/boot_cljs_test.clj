@@ -17,7 +17,7 @@
 (def default-deps
   {:adzerk/boot-cljs "2.1.2"
    :org.clojure/clojurescript "1.9.854" ;; TODO: regression back to usage with 1.7.228
-   :doo "0.1.8"})
+   :doooo "0.1.9-SNAPSHOT"})
 
 ;; utils
 
@@ -55,8 +55,8 @@
 (defn assert-compiler-opts!
   "Assert that compiler options are compatible with given test runner."
   [js-env cljs-opts]
-  (ensure-deps! [:doo])
-  ((u/r doo.core/assert-compiler-opts)
+  (ensure-deps! [:dooo])
+  ((u/r dooo.core/assert-compiler-opts)
     js-env
     (assoc cljs-opts
       :output-to "placeholder"
@@ -105,8 +105,8 @@
 (defn- gen-suite-ns
   "Generate source-code for default test suite."
   [ns namespaces]
-  (let [ns-spec `(~'ns ~ns (:require [doo.runner :refer-macros [~'doo-tests]] ~@(mapv vector namespaces)))
-        run-exp `(~'doo-tests ~@(map u/normalize-sym namespaces))]
+  (let [ns-spec `(~'ns ~ns (:require [dooo.runner :refer-macros [~'dooo-tests]] ~@(mapv vector namespaces)))
+        run-exp `(~'dooo-tests ~@(map u/normalize-sym namespaces))]
     (->> [ns-spec '(enable-console-print!) run-exp]
          (map #(with-out-str (clojure.pprint/pprint %)))
          (str/join "\n"))))
@@ -168,11 +168,11 @@
 (defn run-tests! [doo-installed? fileset {:keys [verbosity ids js-env cljs-opts exit? doo-opts symlink?]}]
   (err/with-errors!
     (info? verbosity "Running cljs tests...\n")
-    ((u/r doo.core/print-envs) js-env)
+    ((u/r dooo.core/print-envs) js-env)
     (doseq [id ids]
       (when (> (count ids) 1) (info? verbosity "• %s\n" id))
       (let [filename (u/os-path (str id ".js"))
-            karma? ((u/r doo.karma/env?) js-env)
+            karma? ((u/r dooo.karma/env?) js-env)
             output-to (u/find-path fileset filename)
             output-dir (when output-to (str/replace output-to #"\.js\z" ".out"))
             asset-path (when (u/asset-path?) (u/asset-path id cljs-opts))
@@ -181,7 +181,7 @@
                   #(throw (ex-info (:out % %) {:boot.util/omit-stacktrace? true}))
                   #(err/track-error! (if (map? %) % {:exit 1 :out "" :err %})))]
         (when output-to
-          ((u/r doo.core/assert-compiler-opts) js-env cljs-opts))
+          ((u/r dooo.core/assert-compiler-opts) js-env cljs-opts))
         (if-not output-to
           (do (warn "Test script not found: %s\n" filename)
               (swap! boot/*warnings* inc)
@@ -201,21 +201,21 @@
                 _ (when karma?
                     (when-not @doo-installed?
                       (reset! doo-installed? true)
-                      ((u/r doo.core/install!) [js-env] cljs-opts doo-opts)
+                      ((u/r dooo.core/install!) [js-env] cljs-opts doo-opts)
                       (Thread/sleep 1000)))]
             (if karma?
-              (let [proc ((u/r doo.core/karma-run!) doo-opts)]
+              (let [proc ((u/r dooo.core/karma-run!) doo-opts)]
                 (.waitFor proc)
                 (when-not (zero? (.exitValue proc))
                   (err "Test failures signalled by Karma")))
               (let [{:keys [exit] :as result}
-                    ((u/r doo.core/run-script) js-env cljs-opts doo-opts)]
+                    ((u/r dooo.core/run-script) js-env cljs-opts doo-opts)]
                 (when-not (zero? exit)
                   (err result))))))))
     fileset))
 
 (defn- -run-cljs-tests [{:keys [js-env cljs-opts doo-installed?] :as task-opts}]
-  (ensure-deps! [:doo])
+  (ensure-deps! [:dooo])
   (fn [next-task]
     (fn [fileset]
       (next-task (run-tests! doo-installed? fileset task-opts)))))
@@ -269,7 +269,7 @@
    j js-env    VAL  kw    "Environment to execute within, eg. slimer, phantom, ..."
    c cljs-opts OPTS edn   "Options to pass on to CLJS compiler."
    v verbosity VAL  int   "Log level, from 0 to 3"
-   d doo-opts  VAL  code  "Options to pass on to Doo."
+   d doo-opts  VAL  code  "Options to pass on to Dooo."
    s symlink?       bool  "Use symlinks to copy resources and node dependencies into test output folder."
    x exit?          bool  "Throw exception on error or inability to run tests."]
   (-run-cljs-tests
@@ -287,7 +287,7 @@
    i ids           IDS    [str]  "Test runner ids. Generates each config if not found."
    c cljs-opts     OPTS   edn    "Options to pass on to CLJS compiler."
    O optimizations LEVEL  kw     "Optimization level for CLJS compiler, defaults to :none."
-   d doo-opts      VAL    code   "Options to pass on to Doo."
+   d doo-opts      VAL    code   "Options to pass on to Dooo."
    u update-fs?           bool   "Skip fileset rollback before running next task.
                                   By default fileset is rolled back to support additional cljs suites, clean JARs, etc."
    x exit?                bool   "Throw exception on error or inability to run tests."
@@ -295,7 +295,7 @@
    s symlink?             bool   "Use symlinks to copy resources and node dependencies into test output folder."
    v verbosity     VAL    int    "Log level, from 0 to 3"
    o out-file      VAL    str    "DEPRECATED Output file for test script."]
-  (ensure-deps! [:adzerk/boot-cljs :org.clojure/clojurescript :doo])
+  (ensure-deps! [:adzerk/boot-cljs :org.clojure/clojurescript :dooo])
   (when out-file
     (warn "[boot-cljs] :out-file is deprecated, please use :ids\n")
     (swap! boot/*warnings* inc))
@@ -303,7 +303,7 @@
         (normalize-task-opts
           (named-map ids js-env namespaces exclusions cljs-opts optimizations doo-opts verbosity out-file symlink? exit?))
         ;; karma process is external, so coordinating rollback is not feasible.
-        update-fs? (or update-fs? ((u/r doo.karma/env?) js-env))]
+        update-fs? (or update-fs? ((u/r dooo.karma/env?) js-env))]
     (fcomp
       (when-not update-fs? (fs-snapshot))
       (for [id ids] (-prep-cljs-tests id task-opts))
